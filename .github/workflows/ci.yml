@@ -1,0 +1,93 @@
+name: Vajra-Opt CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-format:
+    name: Code Formatting (clang-format)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install clang-format
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-format
+
+      - name: Check Code Formatting
+        run: |
+          clang-format --version
+          find include src tests -name '*.hpp' -o -name '*.cpp' | xargs clang-format --dry-run --Werror
+
+  build-and-test:
+    name: ${{ matrix.os }} - ${{ matrix.compiler }} - ${{ matrix.build_type }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux GCC Debug with Sanitizers
+          - os: ubuntu-latest
+            compiler: gcc
+            build_type: Debug
+            enable_sanitizers: ON
+          # Linux GCC Release
+          - os: ubuntu-latest
+            compiler: gcc
+            build_type: Release
+            enable_sanitizers: OFF
+          # Linux Clang Debug with Sanitizers
+          - os: ubuntu-latest
+            compiler: clang
+            build_type: Debug
+            enable_sanitizers: ON
+          # Windows MSVC Debug
+          - os: windows-latest
+            compiler: msvc
+            build_type: Debug
+            enable_sanitizers: OFF
+          # Windows MSVC Release
+          - os: windows-latest
+            compiler: msvc
+            build_type: Release
+            enable_sanitizers: OFF
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Linux Compiler
+        if: runner.os == 'Linux'
+        run: |
+          if [ "${{ matrix.compiler }}" = "gcc" ]; then
+            sudo apt-get update && sudo apt-get install -y g++-14
+            echo "CC=gcc-14" >> $GITHUB_ENV
+            echo "CXX=g++-14" >> $GITHUB_ENV
+          elif [ "${{ matrix.compiler }}" = "clang" ]; then
+            sudo apt-get update && sudo apt-get install -y clang-18
+            echo "CC=clang-18" >> $GITHUB_ENV
+            echo "CXX=clang++-18" >> $GITHUB_ENV
+          fi
+
+      - name: Configure CMake
+        run: |
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+            -DBUILD_TESTING=ON \
+            -DVAJRA_ENABLE_SANITIZERS=${{ matrix.enable_sanitizers }} \
+            -DVAJRA_ENABLE_WARNINGS_AS_ERRORS=ON
+
+      - name: Build Project
+        run: cmake --build build --config ${{ matrix.build_type }} -j 2
+
+      - name: Execute Test Suite
+        run: ctest --test-dir build -C ${{ matrix.build_type }} --output-on-failure

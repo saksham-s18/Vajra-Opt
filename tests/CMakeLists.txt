@@ -21,6 +21,7 @@ add_executable(vajra_unit_tests
     unit/test_options.cpp
     unit/test_solution.cpp
     unit/test_solver.cpp
+    unit/test_sparse_matrix.cpp
 )
 
 target_link_libraries(vajra_unit_tests

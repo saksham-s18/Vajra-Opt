@@ -89,7 +89,49 @@ Guarantees mathematical sanity before any solver algorithm commences:
 - Sparse matrix validity (monotone column pointers, valid sorted row indices, non-empty bounds).
 - Binary variable bound conformance ($x \in [0, 1]$).
 
-### 2.3 Presolve and Scaling Subsystem — [PLANNED: Phase 3]
+### 2.3 Sparse Linear Algebra Layer (`src/core/sparse_matrix.cpp`) — [IMPLEMENTED: Phase 1A]
+
+The numerical foundation of Vajra-Opt is built on a clean, high-performance sparse matrix subsystem:
+
+```
+        +-------------------+
+        |       Model       |
+        +-------------------+
+                  |
+                  v
+        +-------------------+
+        |   SparseMatrix    |
+        +-------------------+
+                  |
+                  v
+        +-------------------+
+        |   Canonical CSC   |
+        +-------------------+
+                  |
+         +--------+--------+
+         |                 |
+         v                 v
+    +---------+       +-----------+
+    |  A * x  |       |  A^T * x  |
+    +---------+       +-----------+
+```
+
+#### Why Compressed Sparse Column (CSC) is Canonical:
+1. **Simplex Column Orientation**: In revised simplex methods, basis matrices are formed by selecting specific column vectors $a_j$ from $A$. Column extraction, entering-column transformations ($B \bar{a}_q = a_q$), and pivot operations require contiguous column storage.
+2. **Streaming Column SpMV ($y = A x$)**: For each column $j$, the non-zero elements are accessed sequentially from cache, scaled by $x_j$, and accumulated into $y$:
+   $$y = \sum_{j=0}^{n-1} x_j a_j$$
+3. **Independent Adjoint SpMV ($y = A^T x$)**: The $j$-th entry of $A^T x$ is the exact dot product between column $j$ of $A$ and vector $x$:
+   $$y_j = a_j^T x = \sum_{i} A_{ij} x_i$$
+   This enables fully independent, parallelizable evaluations without scatter conflicts or synchronization primitives.
+4. **Canonical Invariants**:
+   - `col_ptr` of size $n + 1$ with $col\_ptr[0] = 0$ and $col\_ptr[j] \le col\_ptr[j+1]$.
+   - Strictly increasing row indices within each column $j$ in $[col\_ptr[j], col\_ptr[j+1])$.
+   - Automatic duplicate summation during triplet canonicalization.
+
+#### Future CSR and GPU Device Representations:
+While CSC is the canonical host representation for mathematical modeling and Simplex routines, Compressed Sparse Row (CSR) and device-specific representations (e.g. pinned memory buffers, cuSPARSE CSR descriptors, or block-sparse formats) will be introduced in Phase 2 for high-throughput GPU kernel execution.
+
+### 2.4 Presolve and Scaling Subsystem — [PLANNED: Phase 3]
 - **Presolve**: Empty row/col removal, singleton row/col processing, bound tightening, implied free variables, dual presolve.
 - **Scaling**: Ruiz equilibration, geometric mean scaling, Curtis-Reid equilibrium to minimize matrix condition numbers.
 

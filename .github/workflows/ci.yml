@@ -79,12 +79,12 @@ jobs:
           fi
 
       - name: Configure CMake
-        run: |
-          cmake -B build \
-            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
-            -DBUILD_TESTING=ON \
-            -DVAJRA_ENABLE_SANITIZERS=${{ matrix.enable_sanitizers }} \
-            -DVAJRA_ENABLE_WARNINGS_AS_ERRORS=ON
+        run: >-
+          cmake -B build
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          -DBUILD_TESTING=ON
+          -DVAJRA_ENABLE_SANITIZERS=${{ matrix.enable_sanitizers }}
+          -DVAJRA_ENABLE_WARNINGS_AS_ERRORS=ON
 
       - name: Build Project
         run: cmake --build build --config ${{ matrix.build_type }} -j 2
